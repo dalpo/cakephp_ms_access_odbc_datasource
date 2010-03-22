@@ -14,42 +14,7 @@ class DboOdbcAccess extends DboOdbc {
    *
    * @var string
    */
-  var $description = "ODBC DBO Driver for MS Access";
-
-
-  /**
-   * Returns an array of the fields in the table used by the given model.
-   *
-   * @param AppModel $model Model object
-   * @return array Fields in table. Keys are name and type
-   */
-//  function describe(&$model) {
-//    $cache = DataSource::describe($model);
-//    if ($cache != null) {
-//      return $cache;
-//    }
-//
-//    $fields = false;
-//    $cols = $this->_adodb->MetaColumns($this->fullTableName($model, false));
-//
-//    foreach ($cols as $column) {
-//      $fields[$column->name] = array(
-//              'type' => $this->column($column->type),
-//              'null' => !$column->not_null,
-//              'length' => $column->max_length,
-//      );
-//      /* extra test otherwise causes ADOFieldObject error - the properties do not exist */
-//      if (isset($column->has_default) && $column->has_default) {
-//        $fields[$column->name]['default'] = $column->default_value;
-//      }
-//      if (isset($column->primary_key) && $column->primary_key == 1) {
-//        $fields[$column->name]['key'] = 'primary';
-//      }
-//    }
-//
-//    $this->__cacheDescription($this->fullTableName($model, false), $fields);
-//    return $fields;
-//  }
+  public $description = "ODBC DBO Driver for MS Access";
 
   /**
    * Returns a limit statement in the correct format for the particular database.
@@ -71,48 +36,6 @@ class DboOdbcAccess extends DboOdbc {
       return $rt;
     }
     return null;
-  }
-
-  /**
-   * Returns a quoted and escaped string of $data for use in an SQL statement.
-   *
-   * @param string $data String to be prepared for use in an SQL statement
-   * @param string $column_type The type of the column into which this data will be inserted
-   * @param boolean $safe Whether or not numeric data should be handled automagically if no column data is provided
-   * @return string Quoted and escaped data
-   */
-  function value($data, $column = null, $safe = false) {
-    $parent = DboSource::value($data, $column, $safe);
-    if ($parent != null) {
-      return $parent;
-    }
-
-    if ($data === null) {
-      return 'NULL';
-    }
-
-    if ($data === '') {
-      return "''";
-    }
-
-    switch($column) {
-      case 'boolean':
-        $data = $this->boolean((bool)$data);
-        break;
-      default:
-        if (get_magic_quotes_gpc()) {
-          $data = stripslashes(str_replace("'", "''", $data));
-        } else {
-          $data = str_replace("'", "''", $data);
-        }
-        break;
-    }
-
-    if ((in_array($column, array('integer', 'float')) && is_numeric($data))
-            || (empty($column) && is_numeric($data))) {
-      return $data;
-    }
-    return "'" . $data . "'";
   }
 
   /**
@@ -206,14 +129,16 @@ class DboOdbcAccess extends DboOdbc {
     $options = array_merge($defaults, $options);
 
     $t = getMicrotime();
-    
+
     $result = $this->_result = $this->_execute($sql);
 
     $this->error = null;
-    
+
     if ($options['stats']) {
       $this->took = round((getMicrotime() - $t) * 1000, 0);
-      if(!$result) { $this->error = $this->lastError(); }
+      if(!$result) {
+        $this->error = $this->lastError();
+      }
       $this->affected = $this->lastAffected();
       $this->numRows = $this->lastNumRows();
     }
@@ -228,6 +153,7 @@ class DboOdbcAccess extends DboOdbc {
     }
     return $this->_result;
   }
+
 
 }
 ?>
