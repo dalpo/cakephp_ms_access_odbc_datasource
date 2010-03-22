@@ -1,5 +1,4 @@
 <?php
-uses ('model' . DS . 'datasources' . DS . 'dbo' . DS . 'dbo_odbc');
 /**
  * Cakephp MS Access datasource via ODBC
  * based on: http://bakery.cakephp.org/articles/view/a-cakephp-adodb-data-source-driver-for-ms-access
@@ -8,6 +7,7 @@ uses ('model' . DS . 'datasources' . DS . 'dbo' . DS . 'dbo_odbc');
  * @package       cake
  * @subpackage    cake.cake.libs.model.datasources.dbo
  */
+App::import('Core', 'DboOdbc');
 class DboOdbcAccess extends DboOdbc {
   /**
    * Driver description
@@ -15,7 +15,7 @@ class DboOdbcAccess extends DboOdbc {
    * @var string
    */
   var $description = "ODBC DBO Driver for MS Access";
-  
+
 
   /**
    * Returns an array of the fields in the table used by the given model.
@@ -190,6 +190,43 @@ class DboOdbcAccess extends DboOdbc {
     } else {
       return trim("{$type} JOIN {$table} {$alias} ON ({$conditions})");
     }
+  }
+
+  /**
+   * Queries the database with given SQL statement, and obtains some metadata about the result
+   * (rows affected, timing, any errors, number of rows in resultset). The query is also logged.
+   * If DEBUG is set, the log is shown all the time, else it is only shown on errors.
+   *
+   * @param string $sql
+   * @param array $options
+   * @return mixed Resource or object representing the result set, or false on failure
+   */
+  function execute($sql, $options = array()) {
+    $defaults = array('stats' => true, 'log' => $this->fullDebug);
+    $options = array_merge($defaults, $options);
+
+    $t = getMicrotime();
+    
+    $result = $this->_result = $this->_execute($sql);
+
+    $this->error = null;
+    
+    if ($options['stats']) {
+      $this->took = round((getMicrotime() - $t) * 1000, 0);
+      if(!$result) { $this->error = $this->lastError(); }
+      $this->affected = $this->lastAffected();
+      $this->numRows = $this->lastNumRows();
+    }
+
+    if ($options['log']) {
+      $this->logQuery($sql);
+    }
+
+    if ($this->error) {
+      $this->showQuery($sql);
+      return false;
+    }
+    return $this->_result;
   }
 
 }
