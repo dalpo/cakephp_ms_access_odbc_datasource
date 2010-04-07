@@ -6,6 +6,8 @@
  *
  * @package       cake
  * @subpackage    cake.cake.libs.model.datasources.dbo
+ * @author        Andrea Dal Ponte - dalpo85@gmail.com
+ * @link          http://github.com/dalpo/cakephp_ms_access_odbc_datasource
  */
 App::import('Core', 'DboOdbc');
 class DboOdbcAccess extends DboOdbc {
@@ -23,7 +25,7 @@ class DboOdbcAccess extends DboOdbc {
      * @param integer $offset Offset from which to start results
      * @return string SQL limit/offset statement
      */
-    function limit($limit, $offset = null) {
+    public function limit($limit, $offset = null) {
         if ($limit) {
             $rt = '';
             if (!strpos(strtolower($limit), 'top') || strpos(strtolower($limit), 'top') === 0) {
@@ -45,7 +47,7 @@ class DboOdbcAccess extends DboOdbc {
      * @param array $data Query data
      * @return string
      */
-    function renderStatement($type, $data) {
+    public function renderStatement($type, $data) {
         switch (strtolower($type)) {
             case 'select':
                 extract($data);
@@ -71,7 +73,7 @@ class DboOdbcAccess extends DboOdbc {
      * @param array $values
      * @return array
      */
-    function update(&$model, $fields = array(), $values = array()) {
+    public function update(&$model, $fields = array(), $values = array()) {
         foreach ($fields as $i => $field) {
             if ($field == $model->primaryKey) {
                 unset ($fields[$i]);
@@ -82,7 +84,15 @@ class DboOdbcAccess extends DboOdbc {
         return DboSource::update($model, $fields, $values);
     }
 
-    function buildStatement($query, $model) {
+    /**
+     * Builds and generates an SQL statement from an array.	 Handles final clean-up before conversion.
+     *
+     * @param array $query An array defining an SQL query
+     * @param object $model The model object which initiated the query
+     * @return string An executable SQL statement
+     * @see DboSource::renderStatement()
+     */
+    public function buildStatement($query, $model) {
         $join_parentheses = '';
         $query = array_merge(array('offset' => null, 'joins' => array()), $query);
         if (!empty($query['joins'])) {
@@ -106,12 +116,18 @@ class DboOdbcAccess extends DboOdbc {
         ));
     }
 
-    function renderJoinStatement($data) {
+    /**
+     * Renders a final SQL JOIN statement
+     *
+     * @param array $data
+     * @return string
+     */
+    public function renderJoinStatement($data) {
         extract($data);
         if (empty($type)) {
-            return trim("INNER JOIN {$table} {$alias} ON ({$conditions})");
+            return "INNER JOIN {$table} {$alias} ON ({$conditions})";
         } else {
-            return trim("{$type} JOIN {$table} {$alias} ON ({$conditions})");
+            return "{$type} JOIN {$table} {$alias} ON ({$conditions})";
         }
     }
 
@@ -124,14 +140,12 @@ class DboOdbcAccess extends DboOdbc {
      * @param array $options
      * @return mixed Resource or object representing the result set, or false on failure
      */
-    function execute($sql, $options = array()) {
+    public function execute($sql, $options = array()) {
         $defaults = array('stats' => true, 'log' => $this->fullDebug);
         $options = array_merge($defaults, $options);
 
         $t = getMicrotime();
-
         $result = $this->_result = $this->_execute($sql);
-
         $this->error = null;
 
         if ($options['stats']) {
@@ -154,6 +168,8 @@ class DboOdbcAccess extends DboOdbc {
         return $this->_result;
     }
 
+
+
     /**
      * Generates the fields list of an SQL query.
      *
@@ -163,7 +179,7 @@ class DboOdbcAccess extends DboOdbc {
      * @param boolean $quote If false, returns fields array unquoted
      * @return array
      */
-    function fields(&$model, $alias = null, $fields = array(), $quote = true) {
+    public function fields(&$model, $alias = null, $fields = array(), $quote = true) {
         if (empty($alias)) {
             $alias = $model->alias;
         }
@@ -183,7 +199,7 @@ class DboOdbcAccess extends DboOdbc {
             for ($i = 0; $i < $count; $i++) {
                 if (is_object($fields[$i]) && isset($fields[$i]->type) && $fields[$i]->type === 'expression') {
                     $fields[$i] = $fields[$i]->value;
-                } elseif (preg_match('/^\(.*\)\s' . $this->alias . '.*/i', $fields[$i])) {
+                } elseif (preg_match('/^\(.*\)\s' . $this->alias . '.*/i', $fields[$i]) || strrpos($fields[$i], '_dot_')) {
                     continue;
                 } elseif (!preg_match('/^.+\\(.*\\)/', $fields[$i])) {
                     $prepend = '';
@@ -199,25 +215,13 @@ class DboOdbcAccess extends DboOdbc {
                                 strpos($fields[$i], ' ') !== false ||
                                         strpos($fields[$i], '(') !== false
                         );
-                        $fields[$i] = $this->name(($prefix ? $alias . '.' : '') . $fields[$i]);
+                        $fields[$i] = $this->name(($prefix ? $alias . '.' : '') . $fields[$i]) . ' AS ' . $this->name($alias . '_dot_' . $fields[$i]);
                     } else {
                         $value = array();
                         $comma = strpos($fields[$i], ',');
                         if ($comma === false) {
                             $build = explode('.', $fields[$i]);
-                            if (!Set::numeric($build)) {
-                                $fields[$i] = $this->name($build[0] . '.' . $build[1]);
-                            }
-                            $comma = String::tokenize($fields[$i]);
-                            foreach ($comma as $string) {
-                                if (preg_match('/^[0-9]+\.[0-9]+$/', $string)) {
-                                    $value[] = $string;
-                                } else {
-                                    $build = explode('.', $string);
-                                    $value[] = $this->name(trim($build[0]) . '.' . trim($build[1]));
-                                }
-                            }
-                            $fields[$i] = implode(', ', $value);
+                            $fields[$i] = $this->name($build[0] . '.' . $build[1]) . ' AS ' . $this->name($build[0] . '_dot_' . $build[1]);
                         }
                     }
                     $fields[$i] = $prepend . $fields[$i];
