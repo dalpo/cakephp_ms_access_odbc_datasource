@@ -57,7 +57,13 @@ class DboOdbcAccess extends DboOdbc {
                     $limit = 'DISTINCT ' . trim($limit);
                     $fields = substr($fields, 9);
                 }
-                return "SELECT {$limit} {$fields} FROM {$table} {$alias} {$joins} {$conditions} {$group} {$order}";
+
+                $fromStatement = "{$table} {$alias}";
+                foreach ($joins as $join) {
+                    $fromStatement = " ( ".$fromStatement." ) ".$join;
+                }
+                
+                return "SELECT {$limit} {$fields} FROM {$fromStatement} {$conditions} {$group} {$order}";
                 break;
             default:
                 return DboSource::renderStatement($type, $data);
@@ -109,9 +115,29 @@ class DboOdbcAccess extends DboOdbc {
                 'alias' => $this->alias . $this->name($query['alias']),
                 'order' => $this->order($query['order']),
                 'limit' => $this->limit($query['limit'], $query['offset']),
-                'joins' => implode(' ', $query['joins']),
+                'joins' => $query['joins'],
                 'group' => $this->group($query['group'])
         ));
+    }
+
+    /**
+     * Merge all SQL Joins
+     *
+     * @param array $joins An array of SQL joins statement
+     * @return string SQL Joins statement
+     */
+    public function mergeJoinStatement($joins = array()) {
+        $result = "";
+        foreach ($joins as $join) {
+            if(empty ($result)) {
+                $result = $join;
+            } else {
+                $result = " ( ".$result." ) ".$join;
+            }
+        }
+        $result = str_replace("JOIN", "JOIN ( ", $result);
+
+        return $result;
     }
 
     /**
