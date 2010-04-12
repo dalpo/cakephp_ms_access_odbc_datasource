@@ -92,7 +92,7 @@ class DboOdbcAccess extends DboOdbc {
      * @return string An executable SQL statement
      * @see DboSource::renderStatement()
      */
-    function buildStatement($query, $model) {
+    public function buildStatement($query, $model) {
         $query = array_merge(array('offset' => null, 'joins' => array()), $query);
         if (!empty($query['joins'])) {
             $count = count($query['joins']);
@@ -300,7 +300,7 @@ class DboOdbcAccess extends DboOdbc {
      * @return string An SQL calculation function
      * @access public
      */
-    function calculate(&$model, $func, $params = array()) {
+    public function calculate(&$model, $func, $params = array()) {
         $params = (array)$params;
 
         switch (strtolower($func)) {
