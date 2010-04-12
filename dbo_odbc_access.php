@@ -62,7 +62,7 @@ class DboOdbcAccess extends DboOdbc {
                 foreach ($joins as $join) {
                     $fromStatement = " ( ".$fromStatement." ) ".$join;
                 }
-                
+
                 return "SELECT {$limit} {$fields} FROM {$fromStatement} {$conditions} {$group} {$order}";
                 break;
             default:
@@ -121,23 +121,29 @@ class DboOdbcAccess extends DboOdbc {
     }
 
     /**
-     * Merge all SQL Joins
+     * Builds and generates a JOIN statement from an array.	 Handles final clean-up before conversion.
      *
-     * @param array $joins An array of SQL joins statement
-     * @return string SQL Joins statement
+     * @param array $join An array defining a JOIN statement in a query
+     * @return string An SQL JOIN statement to be used in a query
+     * @see DboSource::renderJoinStatement()
+     * @see DboSource::buildStatement()
      */
-    public function mergeJoinStatement($joins = array()) {
-        $result = "";
-        foreach ($joins as $join) {
-            if(empty ($result)) {
-                $result = $join;
-            } else {
-                $result = " ( ".$result." ) ".$join;
-            }
-        }
-        $result = str_replace("JOIN", "JOIN ( ", $result);
+    function buildJoinStatement($join) {
+        $data = array_merge(array(
+                'type' => null,
+                'alias' => null,
+                'table' => 'join_table',
+                'conditions' => array()
+                ), $join);
 
-        return $result;
+        if (!empty($data['alias'])) {
+            $data['alias'] = $this->alias . $this->name($data['alias']);
+        }
+        if (!empty($data['conditions'])) {
+            $data['conditions'] = trim($this->conditions($data['conditions'], true, false));
+        }
+        $data['table'] = $this->name($data['table']);
+        return $this->renderJoinStatement($data);
     }
 
     /**
@@ -309,7 +315,7 @@ class DboOdbcAccess extends DboOdbc {
             for($i = 0; $i < $numFields; $i++) {
                 list($table, $column) = $this->map[$i];
 //                $resultRow[$table][$column] = odbc_result($this->results, $i + 1);
-                $resultRow[$table][$column] = odbc_result($this->results, "{$table}_dot_{$column}");
+                $resultRow[$table][$column] = @odbc_result($this->results, "{$table}_dot_{$column}");
             }
             return $resultRow;
         }
