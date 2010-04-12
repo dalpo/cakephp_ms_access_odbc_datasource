@@ -198,9 +198,13 @@ class DboOdbcAccess extends DboOdbc {
 
             if (is_object($field_item) && isset($field_item->type) && $field_item->type === 'expression') {
                 $resultFields[] = $field_item->value;
-            } elseif (preg_match('/^\(.*\)\s' . $this->alias . '.*/i', $field_item) || strrpos($field_item, '_dot_') || strrpos($field_item, ' AS ') || strrpos($field_item, 'COUNT')) {
+            } elseif (preg_match('/^\(.*\)\s' . $this->alias . '.*/i', $field_item) || strrpos($field_item, '_dot_') || strrpos($field_item, ' AS ')) {
                 $resultFields[] = $field_item;
-            } elseif(strrpos($field_item, '*') !== false) {                
+//            } elseif (strrpos($field_item, 'COUNT')) {
+//                debug($field_item);
+//                die();
+//                $resultFields[] = $field_item;
+            } elseif(strrpos($field_item, '*') !== false) {
                 /**
                  * workaround
                  */
@@ -220,7 +224,7 @@ class DboOdbcAccess extends DboOdbc {
                 foreach ($describeList as $describeItemKey => $describeItemName) {
                     $newFieldList[] = "{$alias}.{$describeItemKey}";
                 }
-                
+
                 $resultFields = array_merge($resultFields, $this->fields($model, $alias, $newFieldList, $quote));
 
 
@@ -276,7 +280,6 @@ class DboOdbcAccess extends DboOdbc {
             $resultRow = array();
             $numFields = odbc_num_fields($this->results);
             $i = 0;
-
             for($i = 0; $i < $numFields; $i++) {
                 list($table, $column) = $this->map[$i];
 //                $resultRow[$table][$column] = odbc_result($this->results, $i + 1);
@@ -285,6 +288,38 @@ class DboOdbcAccess extends DboOdbc {
             return $resultRow;
         }
         return false;
+    }
+
+
+    /**
+     * Returns an SQL calculation, i.e. COUNT() or MAX()
+     *
+     * @param model $model
+     * @param string $func Lowercase name of SQL function, i.e. 'count' or 'max'
+     * @param array $params Function parameters (any values must be quoted manually)
+     * @return string An SQL calculation function
+     * @access public
+     */
+    function calculate(&$model, $func, $params = array()) {
+        $params = (array)$params;
+
+        switch (strtolower($func)) {
+            case 'count':
+                if (!isset($params[0])) {
+                    $params[0] = '*';
+                }
+                if (!isset($params[1])) {
+                    $params[1] = 'count';
+                }
+                return 'COUNT(' . $this->name($params[0]) . ') AS ' . $this->name($model->alias."_dot_".$params[1]);
+            case 'max':
+            case 'min':
+                if (!isset($params[1])) {
+                    $params[1] = $params[0];
+                }
+                return strtoupper($func) . '(' . $this->name($params[0]) . ') AS ' . $this->name($model->alias."_dot_".$params[1]);
+                break;
+        }
     }
 
 
