@@ -92,26 +92,24 @@ class DboOdbcAccess extends DboOdbc {
      * @return string An executable SQL statement
      * @see DboSource::renderStatement()
      */
-    public function buildStatement($query, $model) {
-        $join_parentheses = '';
+    function buildStatement($query, $model) {
         $query = array_merge(array('offset' => null, 'joins' => array()), $query);
         if (!empty($query['joins'])) {
-            for ($i = 0; $i < count($query['joins']); $i++) {
+            $count = count($query['joins']);
+            for ($i = 0; $i < $count; $i++) {
                 if (is_array($query['joins'][$i])) {
                     $query['joins'][$i] = $this->buildJoinStatement($query['joins'][$i]);
-                    if ($i > 0) $join_parentheses = $join_parentheses . '(';
                 }
             }
         }
-        $join_parentheses = $join_parentheses . ' ';
         return $this->renderStatement('select', array(
-                'conditions' => $this->conditions($query['conditions']),
-                'fields' => join(', ', $query['fields']),
-                'table' => $join_parentheses . $query['table'],
+                'conditions' => $this->conditions($query['conditions'], true, true, $model),
+                'fields' => implode(', ', $query['fields']),
+                'table' => $query['table'],
                 'alias' => $this->alias . $this->name($query['alias']),
                 'order' => $this->order($query['order']),
                 'limit' => $this->limit($query['limit'], $query['offset']),
-                'joins' => join(' ) ', $query['joins']),
+                'joins' => implode(' ', $query['joins']),
                 'group' => $this->group($query['group'])
         ));
     }
@@ -194,53 +192,117 @@ class DboOdbcAccess extends DboOdbc {
             return $fields;
         }
         $count = count($fields);
+        $resultFields = array();
 
-        if ($count >= 1 && !in_array($fields[0], array('*', 'COUNT(*)'))) {
-            for ($i = 0; $i < $count; $i++) {
-                if (is_object($fields[$i]) && isset($fields[$i]->type) && $fields[$i]->type === 'expression') {
-                    $fields[$i] = $fields[$i]->value;
-                } elseif (preg_match('/^\(.*\)\s' . $this->alias . '.*/i', $fields[$i]) || strrpos($fields[$i], '_dot_')) {
+        foreach ($fields as $field_item) {
+
+            if (is_object($field_item) && isset($field_item->type) && $field_item->type === 'expression') {
+                $resultFields[] = $field_item->value;
+            } elseif (preg_match('/^\(.*\)\s' . $this->alias . '.*/i', $field_item) || strrpos($field_item, '_dot_') || strrpos($field_item, ' AS ') || strrpos($field_item, 'COUNT')) {
+                $resultFields[] = $field_item;
+            } elseif(strrpos($field_item, '*') !== false) {                
+                /**
+                 * workaround
+                 */
+                $builds = explode('.', $field_item);
+                $newFieldList = array();
+
+                if( count($builds) == 1 ) {
                     continue;
-                } elseif (!preg_match('/^.+\\(.*\\)/', $fields[$i])) {
-                    $prepend = '';
-
-                    if (strpos($fields[$i], 'DISTINCT') !== false) {
-                        $prepend = 'DISTINCT ';
-                        $fields[$i] = trim(str_replace('DISTINCT', '', $fields[$i]));
+                } else {
+                    if($builds[0] != $model->alias) {
+                        $model = $this->_getModel($builds[0]);
+                        $alias = $builds[0];
                     }
-                    $dot = strpos($fields[$i], '.');
+                }
 
-                    if ($dot === false) {
-                        $prefix = !(
-                                strpos($fields[$i], ' ') !== false ||
-                                        strpos($fields[$i], '(') !== false
-                        );
-                        $fields[$i] = $this->name(($prefix ? $alias . '.' : '') . $fields[$i]) . ' AS ' . $this->name($alias . '_dot_' . $fields[$i]);
+                $describeList = $this->describe($model);
+                foreach ($describeList as $describeItemKey => $describeItemName) {
+                    $newFieldList[] = "{$alias}.{$describeItemKey}";
+                }
+                
+                $resultFields = array_merge($resultFields, $this->fields($model, $alias, $newFieldList, $quote));
+
+
+            } elseif (!preg_match('/^.+\\(.*\\)/', $field_item)) {
+                $prepend = '';
+
+                if (strpos($field_item, 'DISTINCT') !== false) {
+                    $prepend = 'DISTINCT ';
+                    $field_item = trim(str_replace('DISTINCT', '', $field_item));
+                }
+                $dot = strpos($field_item, '.');
+
+                if ($dot === false) {
+                    $prefix = !(
+                            strpos($field_item, ' ') !== false ||
+                                    strpos($field_item, '(') !== false
+                    );
+                    $field_item = $this->name(($prefix ? $alias . '.' : '') . $field_item) . ' AS ' . $this->name($alias . '_dot_' . $field_item);
+                } else {
+                    $value = array();
+                    $comma = strpos($field_item, ',');
+                    if ($comma === false) {
+                        $build = explode('.', $field_item);
+                        $field_item = $this->name($build[0] . '.' . $build[1]) . ' AS ' . $this->name($build[0] . '_dot_' . $build[1]);
+                    }
+                }
+                $resultFields[] = $prepend . $field_item;
+            } elseif (preg_match('/\(([\.\w]+)\)/', $field_item, $field)) {
+                if (isset($field[1])) {
+                    if (strpos($field[1], '.') === false) {
+                        $resultFields[] = $this->name($alias . '.' . $field[1]);
                     } else {
-                        $value = array();
-                        $comma = strpos($fields[$i], ',');
-                        if ($comma === false) {
-                            $build = explode('.', $fields[$i]);
-                            $fields[$i] = $this->name($build[0] . '.' . $build[1]) . ' AS ' . $this->name($build[0] . '_dot_' . $build[1]);
-                        }
-                    }
-                    $fields[$i] = $prepend . $fields[$i];
-                } elseif (preg_match('/\(([\.\w]+)\)/', $fields[$i], $field)) {
-                    if (isset($field[1])) {
-                        if (strpos($field[1], '.') === false) {
-                            $field[1] = $this->name($alias . '.' . $field[1]);
-                        } else {
-                            $field[0] = explode('.', $field[1]);
-                            if (!Set::numeric($field[0])) {
-                                $field[0] = implode('.', array_map(array($this, 'name'), $field[0]));
-                                $fields[$i] = preg_replace('/\(' . $field[1] . '\)/', '(' . $field[0] . ')', $fields[$i], 1);
-                            }
+                        $field[0] = explode('.', $field[1]);
+                        if (!Set::numeric($field[0])) {
+                            $field[0] = implode('.', array_map(array($this, 'name'), $field[0]));
+                            $resultFields[] = preg_replace('/\(' . $field[1] . '\)/', '(' . $field[0] . ')', $field_item, 1);
                         }
                     }
                 }
             }
         }
-        return array_unique($fields);
+
+        return array_unique($resultFields);
+    }
+
+    /**
+     * Fetches the next row from the current result set
+     *
+     * @return unknown
+     */
+    public function fetchResult() {
+        if ($row = odbc_fetch_row($this->results)) {
+            $resultRow = array();
+            $numFields = odbc_num_fields($this->results);
+            $i = 0;
+
+            for($i = 0; $i < $numFields; $i++) {
+                list($table, $column) = $this->map[$i];
+//                $resultRow[$table][$column] = odbc_result($this->results, $i + 1);
+                $resultRow[$table][$column] = odbc_result($this->results, "{$table}_dot_{$column}");
+            }
+            return $resultRow;
+        }
+        return false;
+    }
+
+
+    /**
+     * Retrive a model instance
+     *
+     * @param string $name
+     * @return object
+     */
+    protected function _getModel($name = null) {
+        $model = null;
+        $model = ClassRegistry::init($name);
+        if( $name && !empty( $model ) ) {
+            return $model;
+        } else {
+            trigger_error(__( __CLASS__."::_getModel() - Model is not set or could not be found", true ), E_USER_WARNING);
+            return null;
+        }
     }
 
 }
