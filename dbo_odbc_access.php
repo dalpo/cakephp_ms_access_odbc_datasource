@@ -19,6 +19,27 @@ class DboOdbcAccess extends DboOdbc {
     public $description = "ODBC DBO Driver for MS Access";
 
     /**
+     * Columns formatter
+     *
+     * @var array
+     */
+    public $columns = array(
+//            'primary_key' => array('name' => 'int(11) DEFAULT NULL auto_increment'),
+//            'string' => array('name' => 'varchar', 'limit' => '255'),
+//            'text' => array('name' => 'text'),
+//            'integer' => array('name' => 'int', 'limit' => '11'),
+//            'float' => array('name' => 'float'),
+//            'datetime' => array('name' => 'datetime', 'format' => 'Y-m-d h:i:s', 'formatter' => 'date'),
+//            'timestamp' => array('name' => 'datetime', 'format' => 'Y-m-d h:i:s', 'formatter' => 'date'),
+//            'time' => array('name' => 'time', 'format' => 'h:i:s', 'formatter' => 'date'),
+//            'date' => array('name' => 'date', 'format' => 'Y-m-d', 'formatter' => 'date'),
+//            'binary' => array('name' => 'blob'),
+//            'boolean' => array('name' => 'tinyint', 'limit' => '1'),
+//            'COUNTER'  =>  array('name' => 'counter', 'length' => 20),//??
+            'DATETIME'  =>  array('name' => 'datetime', 'format' => 'd-m-Y h:i:s', 'formatter' => 'date')
+    );
+
+    /**
      * Returns a limit statement in the correct format for the particular database.
      *
      * @param integer $limit Limit of results returned
@@ -320,6 +341,52 @@ class DboOdbcAccess extends DboOdbc {
             return $resultRow;
         }
         return false;
+    }
+
+    /**
+     * Returns an array of the fields in given table name.
+     *
+     * @param Model $model Model object to describe
+     * @return array Fields in table. Keys are name and type
+     */
+    function &describe(&$model) {
+
+        if ($this->cacheSources === false) {
+            return null;
+        }
+        $table = $this->fullTableName($model, false);
+        if (isset($this->__descriptions[$table])) {
+            return $this->__descriptions[$table];
+        }
+        $cache = $this->__cacheDescription($table);
+
+        if ($cache !== null) {
+            $this->__descriptions[$table] =& $cache;
+            return $cache;
+        }
+        
+        $fields = array();
+        $sql = 'SELECT * FROM ' . $this->fullTableName($model);
+        $result = odbc_exec($this->connection, $sql);
+
+        $count = odbc_num_fields($result);
+
+        for ($i = 1; $i <= $count; $i++) {
+            $cols[$i - 1] = odbc_field_name($result, $i);
+        }
+
+        foreach ($cols as $column) {
+            $type = odbc_field_type(odbc_exec($this->connection, 'SELECT ' . $column . ' FROM ' . $this->fullTableName($model)), 1);
+            $fields[$column] = array(
+                    'type' => $type,
+                    'length' => null,
+                    'null' => null,
+                    'default' => null
+            );
+        }
+
+        $this->__cacheDescription($model->tablePrefix . $model->table, $fields);
+        return $fields;
     }
 
 
