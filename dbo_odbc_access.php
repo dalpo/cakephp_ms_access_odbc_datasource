@@ -10,7 +10,6 @@
  * @link          http://github.com/dalpo/cakephp_ms_access_odbc_datasource
  */
 App::import('Core', 'DboOdbc');
-App::import('Core', 'DboOdbc');
 class DboOdbcAccess extends DboOdbc {
     /**
      * Driver description
@@ -149,14 +148,13 @@ class DboOdbcAccess extends DboOdbc {
             $query['conditions'][] = $offsetCodition;
         }
 
-        
         return $this->renderStatement('select', array(
                 'conditions' => $this->conditions($query['conditions'], true, true, $model),
                 'fields' => implode(', ', $query['fields']),
                 'table' => $query['table'],
                 'alias' => $this->alias . $this->name($query['alias']),
                 'order' => $this->order($query['order']),
-                'limit' => $this->limit($query['limit'], $query['offset']),
+                'limit' => $this->limit($query['limit']),
                 'joins' => $query['joins'],
                 'group' => $this->group($query['group'])
         ));
@@ -455,7 +453,7 @@ class DboOdbcAccess extends DboOdbc {
         if ($data === null) {
             return 'NULL';
         }
-        if (in_array(low($column), array('integer', 'float', 'binary')) && $data === '') {
+        if (in_array(low($column), array('integer', 'float', 'binary', 'counter')) && $data === '') {
             return 'NULL';
         }
         if ($data === '') {
@@ -475,7 +473,7 @@ class DboOdbcAccess extends DboOdbc {
                 break;
         }
 
-        if (in_array(low($column), array('integer', 'float', 'binary')) && is_numeric($data)) {
+        if (in_array(low($column), array('integer', 'float', 'binary', 'counter')) && is_numeric($data)) {
             return $data;
         }
         return "'" . $data . "'";
