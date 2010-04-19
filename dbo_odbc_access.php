@@ -10,6 +10,7 @@
  * @link          http://github.com/dalpo/cakephp_ms_access_odbc_datasource
  */
 App::import('Core', 'DboOdbc');
+App::import('Core', 'DboOdbc');
 class DboOdbcAccess extends DboOdbc {
     /**
      * Driver description
@@ -53,9 +54,10 @@ class DboOdbcAccess extends DboOdbc {
                 $rt = ' TOP';
             }
             $rt .= ' ' . $limit;
-            if (is_int($offset) && $offset > 0) {
-                $rt .= ' OFFSET ' . $offset;
-            }
+            //OFFSET doesn't work on Access
+//            if (is_int($offset) && $offset > 0) {
+//                $rt .= ' OFFSET ' . $offset;
+//            }
             return $rt;
         }
         return null;
@@ -129,6 +131,25 @@ class DboOdbcAccess extends DboOdbc {
                 }
             }
         }
+
+        $offset = (int)$query['offset'];
+        if($offset) {
+            $offsetCodition = $this->name($model->alias . "." . $model->primaryKey)." NOT IN ( ";
+            $offsetCodition.= $this->renderStatement('select', array(
+                    'conditions' => $this->conditions($query['conditions'], true, true, $model),
+                    'fields' => $this->name($model->alias . "." . $model->primaryKey),
+                    'table' => $query['table'],
+                    'alias' => $this->alias . $this->name($query['alias']),
+                    'order' => $this->order($query['order']),
+                    'limit' => $this->limit($offset),
+                    'joins' => $query['joins'],
+                    'group' => $this->group($query['group'])
+            ));
+            $offsetCodition.= " )";
+            $query['conditions'][] = $offsetCodition;
+        }
+
+        
         return $this->renderStatement('select', array(
                 'conditions' => $this->conditions($query['conditions'], true, true, $model),
                 'fields' => implode(', ', $query['fields']),
@@ -364,7 +385,7 @@ class DboOdbcAccess extends DboOdbc {
             $this->__descriptions[$table] =& $cache;
             return $cache;
         }
-        
+
         $fields = array();
         $sql = 'SELECT * FROM ' . $this->fullTableName($model);
         $result = odbc_exec($this->connection, $sql);
@@ -387,6 +408,77 @@ class DboOdbcAccess extends DboOdbc {
 
         $this->__cacheDescription($model->tablePrefix . $model->table, $fields);
         return $fields;
+    }
+
+//    /**
+//     * Returns a quoted and escaped string of $data for use in an SQL statement.
+//     *
+//     * @param string $data String to be prepared for use in an SQL statement
+//     * @param string $column The column into which this data will be inserted
+//     * @return string Quoted and escaped
+//     * @todo Add logic that formats/escapes data based on column type
+//     */
+//    function value($data, $column = null) {
+//        $parent=parent::value($data, $column);
+//
+//        if ($parent != null) {
+//            return $parent;
+//        }
+//
+//        if ($data === null) {
+//            return 'NULL';
+//        }
+//
+//        if (in_array($column, array('VARCHAR')) || !is_numeric($data)) {
+//            return "'" . $data . "'";
+//        }
+//        debug($data);
+//        die();
+//
+//        return $data;
+//    }
+
+    /**
+     * Returns a quoted and escaped string of $data for use in an SQL statement.
+     *
+     * @param string $data String to be prepared for use in an SQL statement
+     * @param string $column The column into which this data will be inserted
+     * @param boolean $safe Whether or not numeric data should be handled automagically if no column data is provided
+     * @return string Quoted and escaped data
+     */
+    function value($data, $column = null, $safe = false) {
+        $parent = DboSource::value($data, $column, $safe = false);
+
+        if ($parent != null) {
+            return $parent;
+        }
+        if ($data === null) {
+            return 'NULL';
+        }
+        if (in_array(low($column), array('integer', 'float', 'binary')) && $data === '') {
+            return 'NULL';
+        }
+        if ($data === '') {
+            return "''";
+        }
+
+        switch (low($column)) {
+            case 'boolean':
+                $data = $this->boolean((bool)$data);
+                break;
+            default:
+                if (get_magic_quotes_gpc()) {
+                    $data = stripslashes(str_replace("'", "''", $data));
+                } else {
+                    $data = str_replace("'", "''", $data);
+                }
+                break;
+        }
+
+        if (in_array(low($column), array('integer', 'float', 'binary')) && is_numeric($data)) {
+            return $data;
+        }
+        return "'" . $data . "'";
     }
 
 
