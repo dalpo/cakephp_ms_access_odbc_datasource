@@ -9,7 +9,7 @@
  * @author        Andrea Dal Ponte - dalpo85@gmail.com
  * @link          http://github.com/dalpo/cakephp_ms_access_odbc_datasource
  */
-App::import('Core', 'DboOdbc');
+App::import('Datasource', 'DboOdbc');
 class DboOdbcAccess extends DboOdbc {
     /**
      * Driver description
@@ -445,7 +445,7 @@ class DboOdbcAccess extends DboOdbc {
      * @return string Quoted and escaped data
      */
     function value($data, $column = null, $safe = false) {
-        $parent = DboSource::value($data, $column, $safe = false);
+        $parent = DboSource::value($data, $column, $safe);
 
         if ($parent != null) {
             return $parent;
@@ -453,7 +453,7 @@ class DboOdbcAccess extends DboOdbc {
         if ($data === null) {
             return 'NULL';
         }
-        if (in_array(low($column), array('integer', 'float', 'binary', 'counter')) && $data === '') {
+        if (in_array(low($column), array('integer', 'float', 'binary', 'counter', 'decimal')) && $data === '') {
             return 'NULL';
         }
         if ($data === '') {
@@ -473,7 +473,7 @@ class DboOdbcAccess extends DboOdbc {
                 break;
         }
 
-        if (in_array(low($column), array('integer', 'float', 'binary', 'counter')) && is_numeric($data)) {
+        if (in_array(low($column), array('integer', 'float', 'binary', 'counter', 'decimal')) && is_numeric($data)) {
             return $data;
         }
         return "'" . $data . "'";
