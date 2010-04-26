@@ -70,6 +70,9 @@ class DboOdbcAccess extends DboOdbc {
      * @return string
      */
     public function renderStatement($type, $data) {
+        extract($data);
+        $aliases = null;
+        
         switch (strtolower($type)) {
             case 'select':
                 extract($data);
@@ -87,8 +90,14 @@ class DboOdbcAccess extends DboOdbc {
 
                 return "SELECT {$limit} {$fields} FROM {$fromStatement} {$conditions} {$group} {$order}";
                 break;
+            case 'delete':
+                if (!empty($alias)) {
+                    $aliases = "{$this->alias}{$alias} {$joins} ";
+                }
+                return "DELETE {$alias} FROM {$table} {$aliases}{$conditions}";
+                break;
             default:
-                return DboSource::renderStatement($type, $data);
+                return parent::renderStatement($type, $data);
                 break;
         }
     }
@@ -408,34 +417,6 @@ class DboOdbcAccess extends DboOdbc {
         return $fields;
     }
 
-//    /**
-//     * Returns a quoted and escaped string of $data for use in an SQL statement.
-//     *
-//     * @param string $data String to be prepared for use in an SQL statement
-//     * @param string $column The column into which this data will be inserted
-//     * @return string Quoted and escaped
-//     * @todo Add logic that formats/escapes data based on column type
-//     */
-//    function value($data, $column = null) {
-//        $parent=parent::value($data, $column);
-//
-//        if ($parent != null) {
-//            return $parent;
-//        }
-//
-//        if ($data === null) {
-//            return 'NULL';
-//        }
-//
-//        if (in_array($column, array('VARCHAR')) || !is_numeric($data)) {
-//            return "'" . $data . "'";
-//        }
-//        debug($data);
-//        die();
-//
-//        return $data;
-//    }
-
     /**
      * Returns a quoted and escaped string of $data for use in an SQL statement.
      *
@@ -511,6 +492,16 @@ class DboOdbcAccess extends DboOdbc {
         }
     }
 
+
+    /**
+     * Returns the ID generated from the previous INSERT operation.
+     *
+     * @param string $source
+     * @return int
+     */
+    function lastInsertId($source = null) {
+        return null;
+    }
 
     /**
      * Retrive a model instance
